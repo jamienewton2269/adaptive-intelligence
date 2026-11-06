@@ -1,0 +1,16 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Adaptive Intelligence",
+        "description": "Observe light and heating activity without modifying automations.",
+        "data": {
+          "lux_entity": "Outdoor illuminance sensor entity (optional)"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Already configured"
+    }
+  }
+}
