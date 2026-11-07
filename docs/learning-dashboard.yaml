@@ -1,0 +1,34 @@
+# Read-only Lovelace example; import to a new dashboard as YAML.
+title: Adaptive Intelligence
+views:
+  - title: Learning
+    path: learning
+    icon: mdi:brain
+    cards:
+      - type: markdown
+        content: |
+          # Adaptive Intelligence
+          **Observation only** — no device control.
+          Developed by **JNSystems**. *In loving memory of Becki and Dad.*
+          Unknown Zigbee events are not assumed to be manual actions.
+      - type: entities
+        title: Learning and evidence quality
+        entities:
+          - sensor.adaptive_intelligence_observations
+          - sensor.adaptive_intelligence_verified_user_actions
+          - sensor.adaptive_intelligence_unclassified_actions
+          - sensor.adaptive_intelligence_heating_changes
+          - sensor.adaptive_intelligence_suggestions
+      - type: history-graph
+        title: Observations recorded
+        hours_to_show: 48
+        entities:
+          - sensor.adaptive_intelligence_observations
+          - sensor.adaptive_intelligence_verified_user_actions
+          - sensor.adaptive_intelligence_unclassified_actions
+      - type: markdown
+        content: |
+          ### Interpretation
+          - Verified user actions originate from authenticated HA context.
+          - Unclassified includes physical Zigbee switches until provenance is verified.
+          - Suggestions are review-only candidates, not device commands.
