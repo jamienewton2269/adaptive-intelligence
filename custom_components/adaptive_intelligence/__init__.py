@@ -1,15 +1,21 @@
-"""Passive Adaptive Intelligence by JNSystems: observe, don't actuate."""
+"""Adaptive Intelligence: read-only, local-first historical observation.
+
+JNSystems — in memory of Becki and Dad.
+"""
 from __future__ import annotations
+
 from collections import deque
 from datetime import timedelta
 import logging
+
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.const import EVENT_STATE_CHANGED, EVENT_CALL_SERVICE
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
+
 from .const import DOMAIN, STORAGE_VERSION, STORAGE_KEY, MAX_EVENTS
-from .engine import classify, make_suggestions
+from .engine import classify, make_suggestions, validated_lux
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -17,20 +23,28 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
     store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
     saved = await store.async_load() or {}
     events = deque(saved.get("events", [])[-MAX_EVENTS:], maxlen=MAX_EVENTS)
-    state = {"events": events, "suggestions": [], "last_save": None}
+    state = {"events": events, "suggestions": [], "last_save": None, "last_event": None}
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = state
+
     automation_contexts = {}
     service_contexts = {}
     recent_light_actions = {}
+    sensors = []
 
     @callback
     def forget_stale(now):
         cutoff = now - timedelta(minutes=5)
-        for d in (automation_contexts, service_contexts, recent_light_actions):
-            for key, value in tuple(d.items()):
+        for dictionary in (automation_contexts, service_contexts, recent_light_actions):
+            for key, value in tuple(dictionary.items()):
                 when = value[0] if isinstance(value, tuple) else value
                 if when < cutoff:
-                    del d[key]
+                    del dictionary[key]
+
+    @callback
+    def update_sensors():
+        for sensor in sensors:
+            if sensor.hass is not None:
+                sensor.async_write_ha_state()
 
     @callback
     def handle_automation(event):
@@ -39,7 +53,7 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
 
     @callback
     def handle_service(event):
-        if event.data.get("domain") not in ("light", "homeassistant", "scene", "script"):
+        if event.data.get("domain") not in ("light", "homeassistant", "scene", "script", "climate"):
             return
         if event.context.id:
             service_contexts[event.context.id] = dt_util.utcnow()
@@ -51,33 +65,47 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
             return
         new = event.data.get("new_state")
         old = event.data.get("old_state")
-        if not new or not old or old.state in ("unavailable", "unknown"):
+        if not new or not old:
+            return
+        if old.state in ("unavailable", "unknown") or new.state in ("unavailable", "unknown"):
             return
         if old.state == new.state and old.attributes == new.attributes:
             return
-        if new.state in ("unavailable", "unknown"):
-            return
-        context = {"id": new.context.id, "parent_id": new.context.parent_id, "user_id": new.context.user_id}
+        kind = "light" if entity.startswith("light.") else "climate"
+        now = dt_util.utcnow()
+        context = {"id": new.context.id, "parent_id": new.context.parent_id,
+                   "user_id": new.context.user_id}
         classification = classify(context, automation_contexts, service_contexts)
+
         action = {
-            "at": new.last_updated.isoformat(), "entity": entity,
-            "kind": "light" if entity.startswith("light.") else "climate",
+            "at": now.isoformat(), "entity": entity, "kind": kind,
             "old": old.state, "new": new.state,
-            "classification": classification, "override": False, "context": context,
+            "classification": classification, "override": False,
         }
-        lux_id = entry.data.get("lux_entity", "")
-        if lux_id:
-            lux = hass.states.get(lux_id)
-            try:
-                action["lux"] = float(lux.state) if lux else None
-            except (TypeError, ValueError):
-                action["lux"] = None
-        if entity.startswith("light.") and old.state != new.state:
-            last = recent_light_actions.get(entity)
-            if classification == "user" and last and last[1] == "automation" and last[2] != new.state:
-                action["override"] = True
-            recent_light_actions[entity] = (dt_util.utcnow(), classification, new.state)
+        if kind == "climate":
+            tracked = ("temperature", "target_temp_high", "target_temp_low", "hvac_mode")
+            before = {k: old.attributes.get(k) for k in tracked}
+            after = {k: new.attributes.get(k) for k in tracked}
+            if before == after and old.state == new.state:
+                return  # ambient-temperature-only updates aren't user heating requests
+            action["previous_target"] = before
+            action["new_target"] = after
+        else:
+            lux_id = entry.options.get("lux_entity", entry.data.get("lux_entity", ""))
+            if lux_id:
+                lux, quality = validated_lux(hass.states.get(lux_id), now)
+                action["lux"], action["lux_quality"] = lux, quality
+            if old.state != new.state:
+                last = recent_light_actions.get(entity)
+                if (classification == "user" and last
+                        and last[1] == "automation" and last[2] != new.state
+                        and (now - last[0]) <= timedelta(minutes=5)):
+                    action["override"] = True
+                recent_light_actions[entity] = (now, classification, new.state)
+
         events.append(action)
+        state["last_event"] = now.isoformat()
+        update_sensors()
 
     async def persist(_=None):
         forget_stale(dt_util.utcnow())
@@ -85,6 +113,7 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
             state["suggestions"] = make_suggestions(list(events), hass.config.time_zone)
             await store.async_save({"events": list(events)})
             state["last_save"] = dt_util.utcnow().isoformat()
+            update_sensors()
         except Exception:
             _LOGGER.exception("Unable to persist adaptive learning observations")
 
@@ -96,7 +125,9 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
     ]
     entry.async_on_unload(lambda: [unsub() for unsub in unsubscribers])
     entry.async_on_unload(lambda: hass.async_create_task(persist()))
+
     state["suggestions"] = make_suggestions(list(events), hass.config.time_zone)
+    state["sensors"] = sensors
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
     return True
 
