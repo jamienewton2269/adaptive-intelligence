@@ -1,11 +1,14 @@
-"""Read-only, dynamically refreshed sensors exposing observation diagnostics."""
+"""Read-only sensors: evidence counts, no actuator services."""
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.entity import EntityCategory
 
 from .const import DOMAIN
 
-_METRICS = ("observations", "suggestions", "verified_user_actions",
-            "unclassified_actions", "heating_changes")
+_METRICS = (
+    "observations", "suggestions", "verified_user_actions",
+    "unclassified_actions", "heating_changes",
+    "physical_input_candidates", "unreliable_lux_events",
+)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -40,6 +43,10 @@ class AdaptiveSensor(SensorEntity):
             return sum(e.get("classification") == "unknown" for e in events)
         if self.metric == "heating_changes":
             return sum(e.get("kind") == "climate" for e in events)
+        if self.metric == "physical_input_candidates":
+            return sum(e.get("kind") == "physical_input" for e in events)
+        if self.metric == "unreliable_lux_events":
+            return sum(e.get("lux_quality") in ("invalid", "stale", "unavailable") for e in events)
         return 0
 
     @property
@@ -48,6 +55,8 @@ class AdaptiveSensor(SensorEntity):
         if self.metric == "suggestions":
             return {"candidates": data["suggestions"][:10], "mode": "observe_only"}
         if self.metric == "observations":
-            return {"last_save": data["last_save"],
-                    "last_event": data["last_event"], "mode": "observe_only"}
+            return {
+                "last_save": data["last_save"], "last_event": data["last_event"],
+                "mode": "observe_only", "history_limit": 5000,
+            }
         return {"mode": "observe_only"}
