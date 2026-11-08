@@ -48,3 +48,8 @@ This repository currently uses [GPL-3.0](LICENSE).
 ## Appliance energy intelligence — research prototype
 
 [Appliance fingerprinting and carbon-aware scheduling design](docs/appliance-energy-intelligence.md) describes an observation-only extension to learn power-cycle shapes and rank user-approved washing-machine and dishwasher run windows against NESO regional grid-carbon forecasts and estimated grid import. Its pure analysis functions and tests are committed, but **live appliance learning is not yet enabled**. The Zigbee meter's power/current/energy readings are presently unknown; identification of shared-household loads must remain unverified until readings and labels are confirmed.
+
+
+## Explain a light (v0.3.1)
+
+The new read-only `adaptive_intelligence.explain_light` service accepts a plain-English `query` and returns confirmed configuration blockers, current state and the evidence used. [See explanation documentation](docs/why-light-explanations.md). It identifies the Snug Sofa LED as excluded from the automatic lux priority ladder when `input_boolean.jns_lux_include_sofa` is off. Other lights without a verified rule mapping return incomplete evidence instead of a fabricated answer. Unit tests pass; Home Assistant Assist voice/chat integration and automation-trace collection remain future work. No lighting commands or automation changes.
