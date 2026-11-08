@@ -7,8 +7,9 @@ from __future__ import annotations
 from collections import deque
 from datetime import timedelta
 import logging
+import voluptuous as vol
 
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant, callback, SupportsResponse
 from homeassistant.const import EVENT_STATE_CHANGED, EVENT_CALL_SERVICE
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
@@ -17,6 +18,7 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN, STORAGE_VERSION, STORAGE_KEY, MAX_EVENTS
 from .engine import classify, make_suggestions, validated_lux
 from .evidence import physical_input, classify_quality
+from .light_explain import match_light, explain_light
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -146,6 +148,39 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
     entry.async_on_unload(lambda: hass.async_create_task(persist()))
     state["suggestions"] = make_suggestions(list(events), hass.config.time_zone)
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+
+    @callback
+    def explain_light_query(call):
+        # Read-only service. Resolve ambiguity explicitly rather than guessing.
+        query = call.data["query"]
+        lights = {
+            obj.entity_id: {"name": obj.attributes.get("friendly_name", ""),
+                            "state": obj.state}
+            for obj in hass.states.async_all()
+            if obj.entity_id.startswith("light.")
+        }
+        match = match_light(query, lights)
+        if match["status"] != "found":
+            return {"status": match["status"],
+                    "answer": "Could not identify one light from that question.",
+                    "candidates": match.get("candidates", []),
+                    "read_only": True}
+        facts = {
+            obj.entity_id: {"name": obj.attributes.get("friendly_name", ""),
+                            "state": obj.state}
+            for obj in hass.states.async_all()
+            if obj.entity_id.startswith(("light.", "input_boolean.",
+                                         "input_number.", "input_text.",
+                                         "sensor.", "automation."))
+        }
+        return explain_light(match["entity"], facts)
+
+    hass.services.async_register(
+        DOMAIN, "explain_light", explain_light_query,
+        schema=vol.Schema({vol.Required("query"): vol.All(str, vol.Length(min=1, max=512))}),
+        supports_response=SupportsResponse.ONLY,
+    )
+    entry.async_on_unload(lambda: hass.services.async_remove(DOMAIN, "explain_light"))
     return True
 
 
