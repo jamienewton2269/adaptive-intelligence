@@ -43,3 +43,8 @@ See [documentation](docs/README.md). The original Becki cartoon and animated JNS
 ## Licence
 
 This repository currently uses [GPL-3.0](LICENSE).
+
+
+## Appliance energy intelligence — research prototype
+
+[Appliance fingerprinting and carbon-aware scheduling design](docs/appliance-energy-intelligence.md) describes an observation-only extension to learn power-cycle shapes and rank user-approved washing-machine and dishwasher run windows against NESO regional grid-carbon forecasts and estimated grid import. Its pure analysis functions and tests are committed, but **live appliance learning is not yet enabled**. The Zigbee meter's power/current/energy readings are presently unknown; identification of shared-household loads must remain unverified until readings and labels are confirmed.
