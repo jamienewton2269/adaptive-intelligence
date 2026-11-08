@@ -1,0 +1,104 @@
+title: AI Diagnostics
+views:
+  - title: Ask why
+    path: ask
+    icon: mdi:comment-question-outline
+    cards:
+      - type: custom:adaptive-explain-card
+      - type: markdown
+        content: |
+          ### Diagnostic workspace
+          Use the tabs above to explore lighting, heating and household energy.
+          These pages are independent of existing General and Testing dashboards.
+          The explanation engine currently supports **verified light-controller mappings**.
+          Other equipment and historical automation traces are future additions.
+  - title: Lighting
+    path: lighting
+    icon: mdi:lightbulb-question
+    cards:
+      - type: custom:adaptive-explain-card
+      - type: entities
+        title: Lighting reasons and safeguards
+        show_header_toggle: false
+        entities:
+          - entity: input_boolean.jns_lux_include_sofa
+            name: Include Snug Sofa in auto lighting
+          - entity: input_number.jns_lux_rank_sofa
+            name: Snug Sofa priority
+          - entity: input_boolean.jns_lux_manual_hold_all
+            name: Pause all automatic evening lights
+          - entity: input_text.jns_lux_off_tonight_entities
+            name: Lights manually off tonight
+          - entity: sensor.jns_lighting_effective_lux
+          - entity: sensor.0xa4c1383917c90309_outdoor_lux_10_minute_average
+          - entity: automation.general_shared_lux_progressive_control
+          - entity: light.snug_sofa_led
+      - type: entities
+        title: Learning evidence
+        entities:
+          - sensor.adaptive_intelligence_observations
+          - sensor.adaptive_intelligence_verified_user_actions
+          - sensor.adaptive_intelligence_unclassified_actions
+          - sensor.adaptive_intelligence_physical_input_candidates
+          - sensor.adaptive_intelligence_unreliable_lux_events
+          - sensor.adaptive_intelligence_suggestions
+  - title: Heating
+    path: heating
+    icon: mdi:radiator
+    cards:
+      - type: thermostat
+        entity: climate.thermostat_thermostat
+      - type: entities
+        title: Heating intelligence
+        entities:
+          - sensor.jns_heating_schedule_decision
+          - sensor.jns_heating_predictive_preheat_minutes
+          - sensor.jns_hallway_adaptive_warmup_minutes
+          - input_number.jns_hallway_warmup_observations
+          - sensor.hallway_thermometer_temperature
+          - input_boolean.jns_heating_manual_setpoint_hold
+          - sensor.adaptive_intelligence_heating_changes
+      - type: history-graph
+        title: Heating learning history
+        hours_to_show: 48
+        entities:
+          - sensor.hallway_thermometer_temperature
+          - sensor.jns_heating_active_requested_target
+  - title: Energy
+    path: energy
+    icon: mdi:leaf
+    cards:
+      - type: entities
+        title: Live energy evidence
+        entities:
+          - sensor.pj2101a_1p_wifi_smart_meter_power
+          - sensor.pj2101a_1p_wifi_smart_meter_energy_consumed
+          - sensor.pj2101a_1p_wifi_smart_meter_energy_produced
+          - sensor.0x449fdafffec0aeb3_power
+          - sensor.0x449fdafffec0aeb3_energy
+      - type: markdown
+        content: |
+          ### Appliance fingerprinting
+          Observation-only development. The Zigbee energy sensor needs valid
+          power readings before appliance-cycle learning can begin. No
+          appliance switching or scheduling is enabled.
+  - title: System
+    path: system
+    icon: mdi:stethoscope
+    cards:
+      - type: entities
+        title: Adaptive Intelligence diagnostics
+        entities:
+          - sensor.adaptive_intelligence_observations
+          - sensor.adaptive_intelligence_suggestions
+          - sensor.adaptive_intelligence_verified_user_actions
+          - sensor.adaptive_intelligence_unclassified_actions
+          - sensor.adaptive_intelligence_physical_input_candidates
+          - sensor.adaptive_intelligence_unreliable_lux_events
+          - sensor.adaptive_intelligence_heating_changes
+      - type: markdown
+        content: |
+          ### Extensible diagnostics
+          Add future views here for appliance fingerprints, historical
+          automation traces, heating efficiency, and root-cause reports.
+          Developed by JNSystems. In loving memory of Becki and Dad.
