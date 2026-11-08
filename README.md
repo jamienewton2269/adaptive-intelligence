@@ -53,3 +53,8 @@ This repository currently uses [GPL-3.0](LICENSE).
 ## Explain a light (v0.3.1)
 
 The new read-only `adaptive_intelligence.explain_light` service accepts a plain-English `query` and returns confirmed configuration blockers, current state and the evidence used. [See explanation documentation](docs/why-light-explanations.md). It identifies the Snug Sofa LED as excluded from the automatic lux priority ladder when `input_boolean.jns_lux_include_sofa` is off. Other lights without a verified rule mapping return incomplete evidence instead of a fabricated answer. Unit tests pass; Home Assistant Assist voice/chat integration and automation-trace collection remain future work. No lighting commands or automation changes.
+
+
+## Dedicated AI Diagnostics dashboard
+
+The optional [YAML dashboard](dashboard/ai-diagnostics.yaml) and [native custom question card](dashboard/adaptive-explain-card.js) provide a separate **AI Diagnostics** sidebar entry with five views: Ask why, Lighting, Heating, Energy and System. On HA-General the URL is `/ai-diagnostics/ask`. The question card uses Home Assistant's authenticated WebSocket connection to request `adaptive_intelligence.explain_light` with `return_response: true`; it never issues lighting commands. The dashboard is installed on HA-General but other installations must register the resource `/local/adaptive-intelligence/adaptive-explain-card.js` and the YAML dashboard in their own `configuration.yaml`. The card's end-to-end response needs live frontend acceptance testing.
