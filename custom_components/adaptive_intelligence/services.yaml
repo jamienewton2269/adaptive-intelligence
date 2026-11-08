@@ -1,0 +1,11 @@
+explain_light:
+  name: Explain light
+  description: Answer a plain-English question about a light using current Home Assistant evidence. Never changes devices.
+  fields:
+    query:
+      name: Question
+      description: For example, Why isn't the Snug Sofa LED turning on automatically tonight?
+      required: true
+      example: Why isn't the Snug Sofa LED turning on automatically tonight?
+      selector:
+        text:
