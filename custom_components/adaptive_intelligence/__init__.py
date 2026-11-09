@@ -13,6 +13,7 @@ from homeassistant.core import HomeAssistant, callback, SupportsResponse
 from homeassistant.const import EVENT_STATE_CHANGED, EVENT_CALL_SERVICE
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, STORAGE_VERSION, STORAGE_KEY, MAX_EVENTS
@@ -153,12 +154,17 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
     def explain_light_query(call):
         # Read-only service. Resolve ambiguity explicitly rather than guessing.
         query = call.data["query"]
-        lights = {
-            obj.entity_id: {"name": obj.attributes.get("friendly_name", ""),
-                            "state": obj.state}
-            for obj in hass.states.async_all()
-            if obj.entity_id.startswith("light.")
-        }
+        entity_registry = er.async_get(hass)
+        lights = {}
+        for obj in hass.states.async_all():
+            if not obj.entity_id.startswith("light."):
+                continue
+            registered = entity_registry.async_get(obj.entity_id)
+            lights[obj.entity_id] = {
+                "name": obj.attributes.get("friendly_name", ""),
+                "state": obj.state,
+                "aliases": sorted(getattr(registered, "aliases", ()) or ()),
+            }
         match = match_light(query, lights)
         if match["status"] != "found":
             return {"status": match["status"],
