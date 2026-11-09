@@ -42,6 +42,45 @@ class LightExplainTests(unittest.TestCase):
         lights = {"light.sofa_1":{"name":"Sofa One"}, "light.sofa_2":{"name":"Sofa Two"}}
         self.assertEqual(match_light("sofa", lights)["status"],"ambiguous")
 
+    def test_living_room_colloquial(self):
+        lights = {
+            "light.livingroom_pendant": {"name": "Livingroom Pendant"},
+            "light.snug_sofa_led": {"name": "sofa_LED"},
+            "light.general_hall": {"name": "General Hall Bulb"},
+        }
+        r = match_light("why is the living room light on", lights)
+        self.assertEqual(r, {"status": "found", "entity": "light.livingroom_pendant"})
+
+    def test_room_only_with_two_lights_is_ambiguous(self):
+        lights = {
+            "light.livingroom_pendant": {"name": "Livingroom Pendant"},
+            "light.livingroom_corner": {"name": "Living Room Corner"},
+        }
+        r = match_light("why is the living room light on?", lights)
+        self.assertEqual(r["status"], "ambiguous")
+        self.assertEqual(len(r["candidates"]), 2)
+
+    def test_similar_snug_lights_not_conflated(self):
+        lights = {
+            "light.snug_sofa_led": {"name": "sofa_LED"},
+            "light.general_snug_corner": {"name": "General Snug Corner Light"},
+        }
+        r = match_light("why isn't the Snug Corner lamp on", lights)
+        self.assertEqual(r["entity"], "light.general_snug_corner")
+
+    def test_user_defined_alias(self):
+        lights = {
+            "light.livingroom_pendant": {
+                "name": "Livingroom Pendant", "aliases": ["Main lounge light"]
+            }
+        }
+        r = match_light("Why is the main lounge light on?", lights)
+        self.assertEqual(r["entity"], "light.livingroom_pendant")
+
+    def test_unknown_is_not_fabricated(self):
+        lights = {"light.livingroom_pendant": {"name": "Livingroom Pendant"}}
+        self.assertEqual(match_light("Why is the garage roof light on?", lights)["status"], "not_found")
+
 
 if __name__ == "__main__":
     unittest.main()
