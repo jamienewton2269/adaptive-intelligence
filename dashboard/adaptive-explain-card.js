@@ -104,8 +104,17 @@ class AdaptiveExplainCard extends HTMLElement {
       }
       if(Array.isArray(r.candidates) && r.candidates.length) {
         const label=document.createElement("div");
-        label.textContent="Matching lights: "+r.candidates.join(", ");
+        label.textContent="More than one light matches. Select the one you mean:";
         this._els.result.appendChild(label);
+        const choices=document.createElement("div"); choices.className="examples";
+        for (const entity of r.candidates) {
+          if (typeof entity !== "string" || !entity.startsWith("light.")) continue;
+          const choice=document.createElement("button");
+          choice.type="button";choice.textContent=entity;
+          choice.addEventListener("click",()=>{this._els.input.value=entity;this._ask(entity);});
+          choices.appendChild(choice);
+        }
+        this._els.result.appendChild(choices);
       }
       const meta=document.createElement("div");meta.className="meta";
       meta.textContent="Evidence: "+(r.certainty || r.status || "not yet verified")+
