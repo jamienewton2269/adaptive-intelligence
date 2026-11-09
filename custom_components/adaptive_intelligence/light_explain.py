@@ -17,33 +17,116 @@ LUX = "sensor.jns_lighting_effective_lux"
 LIGHT_AUTOMATION = "automation.general_shared_lux_progressive_control"
 
 
-def match_light(query, lights):
-    """Resolve exact entity ID, friendly name or short natural language query.
+# Generic words carry no identifying value. Stopwords are only discarded
+# for matching; the original question is retained verbatim for diagnostics.
+_QUERY_STOP = {
+    "why", "is", "isnt", "isn", "t", "the", "my", "a", "an", "light",
+    "lights", "led", "lamp", "bulb", "turning", "turn", "turned",
+    "on", "off", "automatically", "automatic", "tonight", "today",
+    "not", "coming", "come", "doesnt", "doesn", "are", "was", "did",
+    "will", "has", "have", "please", "in", "at", "to", "from", "of",
+    "work", "working", "switch", "switched", "staying", "stay",
+    "up", "down", "now", "this", "that", "why's",
+}
+# Explicitly named composites and conventional terms; safe because they are
+# lexical normalisation only, not a claim about a device's control wiring.
+_COMPOSITES = (
+    ("livingroom", "living room"),
+    ("frontdoor", "front door"),
+    ("bedroompendant", "bedroom pendant"),
+    ("worktop", "work top"),
+    ("treehouse", "tree house"),
+    ("snugsofa", "snug sofa"),
+    ("hallway", "hall way"),
+)
+_VARIANTS = {
+    "sofa": "sofa", "settee": "sofa", "couch": "sofa",
+    "lounge": "living", "living": "living",
+    "pendant": "pendant", "ceiling": "pendant",
+    "strip": "strip", "tape": "strip",
+    "wc": "wc", "toilet": "wc", "loo": "wc",
+    "hallway": "hall", "hall": "hall",
+    "bulbs": "bulb", "lamps": "lamp",
+}
+_FIXTURE_WORDS = {"pendant", "strip", "sofa", "corner", "front",
+                  "door", "work", "top", "tripod", "ceiling", "bedroom"}
 
-    Ambiguity is an explicit error, never a best-guess selection.
+
+def _tokens(text):
+    value = str(text or "").lower()
+    value = value.replace("_", " ").replace(".", " ")
+    for compact, spaced in _COMPOSITES:
+        value = value.replace(compact, spaced)
+    value = re.sub(r"([a-z])([0-9])", r"\\1 \\2", value)
+    raw = re.findall(r"[a-z]+|[0-9]+", value)
+    return tuple(_VARIANTS.get(t, t) for t in raw)
+
+
+def _light_tokens(entity, data):
+    entity_words = _tokens(entity.removeprefix("light."))
+    name_words = _tokens(data.get("name", ""))
+    aliases = data.get("aliases") or ()
+    if isinstance(aliases, str):
+        aliases = (aliases,)
+    return set(entity_words + name_words + tuple(
+        token for alias in aliases for token in _tokens(alias)
+    ))
+
+
+def match_light(query, lights):
+    """Find a light from a natural phrase, without guessing between candidates.
+
+    Handles compact entity IDs (livingroom), ordinary spacing, friendly names,
+    fixture synonyms and optional HA registry aliases. Room-only requests
+    return ambiguity if more than one light is a plausible match.
     """
-    q = re.sub(r"[^a-z0-9]+", " ", str(query).lower()).strip()
-    if not q:
-        return {"status": "missing_query"}
-    exact = [e for e in lights if q in (
-        e.lower().replace("_", " ").replace(".", " "),
-        str(lights[e].get("name", "")).lower(),
-    )]
+    words = _tokens(query)
+    if not words:
+        return {"status": "missing_query", "candidates": []}
+    terms = set(words) - _QUERY_STOP
+    if not terms:
+        return {"status": "missing_query", "candidates": []}
+
+    exact = [
+        entity for entity, data in lights.items()
+        if tuple(words) == _tokens(entity) or
+        tuple(words) == _tokens(data.get("name", "")) or
+        tuple(words) in [tuple(_tokens(alias)) for alias in (
+            data.get("aliases") if isinstance(data.get("aliases"), (list, tuple))
+            else [data.get("aliases", "")]
+        )]
+    ]
     if len(exact) == 1:
         return {"status": "found", "entity": exact[0]}
-    terms = re.sub(
-        r"\b(why|is|isnt|isn t|the|my|a|an|light|led|turning|turn|on|off|automatically|tonight|today|not|coming|up|doesnt|doesn t|are|was|did|come)\b",
-        " ", q
-    )
-    terms = set(terms.split())
-    matches = []
-    for entity, data in lights.items():
-        haystack = set(re.sub(r"[^a-z0-9]+", " ", entity+" "+str(data.get("name","")).lower()).split())
-        if terms and terms <= haystack:
-            matches.append(entity)
-    if len(matches) == 1:
-        return {"status": "found", "entity": matches[0]}
-    return {"status": "ambiguous" if matches else "not_found", "candidates": matches[:10]}
+
+    # Require every meaningful query word to appear in a candidate's
+    # entity/name/alias. No arbitrary edit distance that could select the
+    # wrong physical actuator.
+    matched = [
+        e for e, data in lights.items()
+        if terms <= _light_tokens(e, data)
+    ]
+    if len(matched) == 1:
+        return {"status": "found", "entity": matched[0]}
+    if len(matched) > 1:
+        return {"status": "ambiguous", "candidates": sorted(matched)[:15]}
+
+    # Device may be named 'livingroom pendant' while user asks 'living room
+    # light'. For partial names, accept an unambiguous *location* only.
+    # Do not drop discriminators such as sofa, corner or front door.
+    candidates = []
+    for e, data in lights.items():
+        tok = _light_tokens(e, data)
+        remaining = terms - tok
+        if not remaining:
+            candidates.append(e)
+        elif remaining <= {"room"} and "living" in tok and "living" in terms:
+            candidates.append(e)
+    if len(candidates) == 1:
+        return {"status": "found", "entity": candidates[0]}
+    if candidates:
+        return {"status": "ambiguous", "candidates": sorted(candidates)[:15]}
+    return {"status": "not_found", "candidates": []}
 
 
 def explain_light(entity, states):
