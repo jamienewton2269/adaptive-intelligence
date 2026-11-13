@@ -42,6 +42,69 @@ views:
           - sensor.adaptive_intelligence_physical_input_candidates
           - sensor.adaptive_intelligence_unreliable_lux_events
           - sensor.adaptive_intelligence_suggestions
+  - title: Lighting Habits
+    path: lighting-habits
+    icon: mdi:chart-timeline-variant
+    cards:
+      - type: markdown
+        content: |
+          ## Lighting Habit Learning
+          **Read-only learning.** Only verified Home Assistant user-context
+          on/off transitions can produce habit candidates. Zigbee button
+          events of uncertain origin do not count as manual requests.
+          
+          {% set q = state_attr('sensor.adaptive_intelligence_lighting_habit_candidates','quality') or {} %}
+          **Transitions analysed:** {{ q.get('on_off_transitions', 0) }}.
+          **Verified manual:** {{ q.get('verified_manual', 0) }}.
+          **Automatic:** {{ q.get('automation', 0) }}.
+          **Unattributed:** {{ q.get('unattributed', 0) }}.
+          **Excluded for unreliable lux:** {{ q.get('excluded_quality', 0) }}.
+          
+          A candidate needs activity on at least **5 different days** spanning
+          **10 or more days**, at a similar hour, separately for on/off and
+          weekdays/weekends. This establishes repetition, **not permission
+          to change an automation**.
+      - type: entities
+        title: Learning progress
+        entities:
+          - sensor.adaptive_intelligence_lighting_habit_candidates
+          - sensor.adaptive_intelligence_lighting_habit_early_patterns
+          - sensor.adaptive_intelligence_verified_user_actions
+          - sensor.adaptive_intelligence_unclassified_actions
+      - type: markdown
+        title: Repeated manual patterns for review
+        content: |
+          {% set patterns = state_attr('sensor.adaptive_intelligence_lighting_habit_candidates','patterns') or [] %}
+          {% if patterns | length == 0 %}
+          No repeatable user-confirmed habits have met the minimum evidence
+          threshold. The engine is still collecting observations.
+          {% else %}
+          {% for item in patterns[:10] %}
+          - **{{ item.entity }}**: usually manually **{{ item.action }}**
+            around **{{ item.typical_time }}** on {{ item.day_class }}s
+            ({{ item.distinct_days }} distinct days over {{ item.span_days }}
+            days). **Review only.**
+          {% endfor %}
+          {% endif %}
+      - type: markdown
+        title: Early signals — not suggestions
+        content: |
+          {% set patterns = state_attr('sensor.adaptive_intelligence_lighting_habit_early_patterns','patterns') or [] %}
+          {% if patterns | length == 0 %}
+          No early repeated manual on/off patterns yet.
+          {% else %}
+          {% for item in patterns[:10] %}
+          - {{ item.entity }}: **{{ item.action }}** around
+            {{ item.typical_time }} ({{ item.distinct_days }} distinct
+            {{ item.day_class }} days; insufficient evidence).
+          {% endfor %}
+          {% endif %}
+      - type: markdown
+        content: |
+          ### Before proposing any control changes
+          The controller must establish reliable device attribution and
+          examine lux, occupancy and energy consequences. No automated
+          rule changes, user prompts or device commands are enabled.
   - title: Heating
     path: heating
     icon: mdi:radiator
