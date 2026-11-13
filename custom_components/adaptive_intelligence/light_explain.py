@@ -129,7 +129,45 @@ def match_light(query, lights):
     return {"status": "not_found", "candidates": []}
 
 
-def explain_light(entity, states):
+
+def recent_light_history(entity, events, limit=5):
+    """Summarise actual observed state transitions, never invent an origin.
+
+    Unknown and service contexts are not treated as verified human actions.
+    Data remain in Home Assistant's existing local bounded Store.
+    """
+    labels = {
+        "user": "Home Assistant user context",
+        "automation": "Automation context observed",
+        "service": "Service call context; initiator unverified",
+        "unknown": "Origin unknown",
+    }
+    rows = []
+    for item in reversed(events):
+        if not isinstance(item, dict) or item.get("entity") != entity:
+            continue
+        if item.get("kind") != "light":
+            continue
+        raw = item.get("at")
+        if not isinstance(raw, str):
+            continue
+        old = str(item.get("old", "unknown"))[:30]
+        new = str(item.get("new", "unknown"))[:30]
+        cls = str(item.get("classification", "unknown"))
+        rows.append({
+            "at": raw[:40],
+            "from": old,
+            "to": new,
+            "source": labels.get(cls, "Origin unknown"),
+            "verified_origin": cls in ("user", "automation"),
+            "change": "state" if old != new else "attributes",
+        })
+        if len(rows) >= max(1, min(int(limit), 10)):
+            break
+    return rows
+
+
+def explain_light(entity, states, events=()):
     """states maps entity IDs to dictionaries with 'state' and optional 'name'."""
     source = states.get(entity)
     if not source:
@@ -168,6 +206,7 @@ def explain_light(entity, states):
         {"name": "effective_lux", "value": states.get(LUX, {}).get("state", "unknown")},
         {"name": "lux_automation", "value": automation},
     ])
+    history = recent_light_history(entity, events)
     name = source.get("name") or entity
     if causes:
         details = " ".join(c["detail"] for c in causes)
@@ -180,6 +219,12 @@ def explain_light(entity, states):
                   "was found in the inspected rules. The exact cause cannot yet be "
                   "established without the relevant automation traces and device events.")
         certainty = "incomplete_evidence"
+    if history:
+        latest = history[0]
+        answer += (f" Last recorded change: {latest['from']} to {latest['to']} "
+                   f"at {latest['at']}; {latest['source'].lower()}.")
+    else:
+        answer += " No recent recorded state change is available in local learning history."
     return {"status": "ok", "entity": entity, "answer": answer,
             "certainty": certainty, "causes": causes, "context": context,
-            "read_only": True}
+            "history": history, "read_only": True}
