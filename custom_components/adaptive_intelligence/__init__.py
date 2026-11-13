@@ -179,7 +179,7 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
                                          "input_number.", "input_text.",
                                          "sensor.", "automation."))
         }
-        return explain_light(match["entity"], facts)
+        return explain_light(match["entity"], facts, state["events"])
 
     hass.services.async_register(
         DOMAIN, "explain_light", explain_light_query,
