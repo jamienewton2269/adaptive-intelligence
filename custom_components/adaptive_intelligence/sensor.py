@@ -8,6 +8,7 @@ _METRICS = (
     "observations", "suggestions", "verified_user_actions",
     "unclassified_actions", "heating_changes",
     "physical_input_candidates", "unreliable_lux_events",
+    "lighting_habit_candidates", "lighting_habit_early_patterns",
 )
 
 
@@ -35,6 +36,10 @@ class AdaptiveSensor(SensorEntity):
         events = data["events"]
         if self.metric == "observations":
             return len(events)
+        if self.metric == "lighting_habit_candidates":
+            return len(data.get("habits", {}).get("candidates", []))
+        if self.metric == "lighting_habit_early_patterns":
+            return len(data.get("habits", {}).get("early_patterns", []))
         if self.metric == "suggestions":
             return len(data["suggestions"])
         if self.metric == "verified_user_actions":
@@ -54,6 +59,17 @@ class AdaptiveSensor(SensorEntity):
         data = self.hass.data[DOMAIN][self.entry.entry_id]
         if self.metric == "suggestions":
             return {"candidates": data["suggestions"][:10], "mode": "observe_only"}
+        if self.metric == "lighting_habit_candidates":
+            h = data.get("habits", {})
+            return {"patterns": h.get("candidates", [])[:12],
+                    "quality": h.get("counts", {}),
+                    "minimum_evidence": h.get("threshold", {}),
+                    "mode": "observe_only"}
+        if self.metric == "lighting_habit_early_patterns":
+            h = data.get("habits", {})
+            return {"patterns": h.get("early_patterns", [])[:12],
+                    "quality": h.get("counts", {}),
+                    "mode": "observe_only"}
         if self.metric == "observations":
             return {
                 "last_save": data["last_save"], "last_event": data["last_event"],
