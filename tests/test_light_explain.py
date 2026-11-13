@@ -82,5 +82,47 @@ class LightExplainTests(unittest.TestCase):
         self.assertEqual(match_light("Why is the garage roof light on?", lights)["status"], "not_found")
 
 
+    def test_recent_history_preserves_unknown_provenance(self):
+        events = [
+            {"at": "2026-11-13T16:00:00+00:00", "entity": "light.snug_sofa_led",
+             "kind": "light", "old": "off", "new": "on",
+             "classification": "unknown"},
+        ]
+        result = explain_light("light.snug_sofa_led", self.data, events)
+        self.assertEqual(result["history"][0]["source"], "Origin unknown")
+        self.assertFalse(result["history"][0]["verified_origin"])
+        self.assertIn("Last recorded change", result["answer"])
+
+    def test_recent_history_filters_other_lights(self):
+        events = [
+            {"at": "2026-11-13T16:00:00+00:00", "entity": "light.kitchen",
+             "kind": "light", "old": "off", "new": "on",
+             "classification": "user"},
+        ]
+        result = explain_light("light.snug_sofa_led", self.data, events)
+        self.assertEqual(result["history"], [])
+
+    def test_recent_history_automation_context(self):
+        events = [
+            {"at": "2026-11-13T16:00:00+00:00", "entity": "light.snug_sofa_led",
+             "kind": "light", "old": "off", "new": "on",
+             "classification": "automation"},
+        ]
+        result = explain_light("light.snug_sofa_led", self.data, events)
+        self.assertTrue(result["history"][0]["verified_origin"])
+        self.assertEqual(result["history"][0]["source"], "Automation context observed")
+
+    def test_history_bounds_and_attribute_changes(self):
+        events = [
+            {"at": "2026-11-13T16:00:00+00:00", "entity": "light.snug_sofa_led",
+             "kind": "light", "old": "on", "new": "on",
+             "classification": "service"}
+        ] * 20
+        result = explain_light("light.snug_sofa_led", self.data, events)
+        self.assertEqual(len(result["history"]), 5)
+        self.assertEqual(result["history"][0]["change"], "attributes")
+
+
+
 if __name__ == "__main__":
     unittest.main()
