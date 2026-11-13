@@ -58,3 +58,18 @@ The new read-only `adaptive_intelligence.explain_light` service accepts a plain-
 ## Dedicated AI Diagnostics dashboard
 
 The optional [YAML dashboard](dashboard/ai-diagnostics.yaml) and [native custom question card](dashboard/adaptive-explain-card.js) provide a separate **AI Diagnostics** sidebar entry with five views: Ask why, Lighting, Heating, Energy and System. On HA-General the URL is `/ai-diagnostics/ask`. The question card uses Home Assistant's authenticated WebSocket connection to request `adaptive_intelligence.explain_light` with `return_response: true`; it never issues lighting commands. The dashboard is installed on HA-General but other installations must register the resource `/local/adaptive-intelligence/adaptive-explain-card.js` and the YAML dashboard in their own `configuration.yaml`. The card's end-to-end response needs live frontend acceptance testing.
+
+
+## v0.3.4 — Lighting Habit Learning v1
+
+The read-only [Lighting Habits dashboard](dashboard/ai-diagnostics.yaml) shows
+repeatable on/off times independently of automations and brightness updates.
+The engine distinguishes `early_patterns` (at least two separate days) from
+`candidates` (at least five distinct days spanning ten or more days);
+separately for each light, weekday/weekend and on/off action. Only verified
+Home Assistant user-context transitions may contribute to a manual pattern.
+Unattributed physical Zigbee events remain unverified, not assumed manual.
+Two new diagnostics sensors and the `adaptive_intelligence.lighting_habits`
+read-only service expose the evidence. All existing automations remain untouched.
+
+[Read the habit-learning evidence and limitations](docs/lighting-habit-learning.md).
