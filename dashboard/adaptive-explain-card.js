@@ -102,6 +102,25 @@ class AdaptiveExplainCard extends HTMLElement {
         }
         this._els.result.appendChild(list);
       }
+      if (Array.isArray(r.history) && r.history.length) {
+        const heading=document.createElement("h3");
+        heading.textContent="Recent observed changes";
+        this._els.result.appendChild(heading);
+        const timeline=document.createElement("ul");
+        timeline.className="causes";
+        for (const entry of r.history) {
+          const item=document.createElement("li");
+          const when=Date.parse(entry.at);
+          const stamp=Number.isFinite(when)
+            ? new Date(when).toLocaleString() : String(entry.at || "Unknown time");
+          const change=entry.change === "attributes"
+            ? "settings changed (on/off unchanged)"
+            : String(entry.from || "?")+" → "+String(entry.to || "?");
+          item.textContent=stamp+": "+change+" — "+String(entry.source || "Origin unknown");
+          timeline.appendChild(item);
+        }
+        this._els.result.appendChild(timeline);
+      }
       if(Array.isArray(r.candidates) && r.candidates.length) {
         const label=document.createElement("div");
         label.textContent="More than one light matches. Select the one you mean:";
