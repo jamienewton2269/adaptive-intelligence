@@ -20,6 +20,7 @@ from .const import DOMAIN, STORAGE_VERSION, STORAGE_KEY, MAX_EVENTS
 from .engine import classify, make_suggestions, validated_lux
 from .evidence import physical_input, classify_quality
 from .light_explain import match_light, explain_light
+from .lighting_habits import summarise_lighting_habits
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
     store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
     saved = await store.async_load() or {}
     events = deque(saved.get("events", [])[-MAX_EVENTS:], maxlen=MAX_EVENTS)
-    state = {"events": events, "suggestions": [], "last_save": None,
+    state = {"events": events, "suggestions": [], "habits": {}, "last_save": None,
              "last_event": None, "sensors": []}
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = state
 
@@ -128,6 +129,7 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
         forget_stale(dt_util.utcnow())
         try:
             state["suggestions"] = make_suggestions(list(events), hass.config.time_zone)
+            state["habits"] = summarise_lighting_habits(list(events), hass.config.time_zone)
             await store.async_save({"events": list(events)})
             state["last_save"] = dt_util.utcnow().isoformat()
             update_sensors()
@@ -148,6 +150,7 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
     )
     entry.async_on_unload(lambda: hass.async_create_task(persist()))
     state["suggestions"] = make_suggestions(list(events), hass.config.time_zone)
+    state["habits"] = summarise_lighting_habits(list(events), hass.config.time_zone)
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
 
     @callback
@@ -187,6 +190,17 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
         supports_response=SupportsResponse.ONLY,
     )
     entry.async_on_unload(lambda: hass.services.async_remove(DOMAIN, "explain_light"))
+
+    @callback
+    def lighting_habits_report(call):
+        # Live read-only evidence. No service action changes a light.
+        return summarise_lighting_habits(list(events), hass.config.time_zone)
+
+    hass.services.async_register(
+        DOMAIN, "lighting_habits", lighting_habits_report,
+        supports_response=SupportsResponse.ONLY,
+    )
+    entry.async_on_unload(lambda: hass.services.async_remove(DOMAIN, "lighting_habits"))
     return True
 
 
