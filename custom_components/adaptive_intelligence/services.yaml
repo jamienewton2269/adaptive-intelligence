@@ -9,3 +9,7 @@ explain_light:
       example: Why isn't the Snug Sofa LED turning on automatically tonight?
       selector:
         text:
+
+lighting_habits:
+  name: Review lighting habits
+  description: Return read-only lighting on/off habit evidence without changing any devices.
