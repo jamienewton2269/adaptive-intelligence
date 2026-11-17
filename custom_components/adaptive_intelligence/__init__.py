@@ -116,10 +116,14 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
             action["previous_target"] = before
             action["new_target"] = after
         else:
-            lux_id = entry.options.get("lux_entity", entry.data.get("lux_entity", ""))
-            if lux_id:
-                lux, quality = validated_lux(hass.states.get(lux_id), now)
-                action["lux"], action["lux_quality"] = lux, quality
+            lux_id = (entry.options.get("lux_entity")
+                      or entry.data.get("lux_entity")
+                      or "sensor.0xa4c1383917c90309_outdoor_lux_10_minute_average")
+            # Default is the existing external sensor, never a light-facing
+            # interior lux sensor that could create feedback.
+            lux, quality = validated_lux(hass.states.get(lux_id), now)
+            action["lux"], action["lux_quality"] = lux, quality
+            action["lux_source"] = lux_id
             if old.state != new.state:
                 last = recent_light_actions.get(entity)
                 if (classification == "user" and last
