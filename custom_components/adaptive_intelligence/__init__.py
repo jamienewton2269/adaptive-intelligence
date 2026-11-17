@@ -21,6 +21,8 @@ from .engine import classify, make_suggestions, validated_lux
 from .evidence import physical_input, classify_quality
 from .light_explain import match_light, explain_light
 from .lighting_habits import summarise_lighting_habits
+from .observation_store import compact_observations
+from .zigbee_actions import parse_zigbee_action
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,9 +30,11 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
     store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
     saved = await store.async_load() or {}
-    events = deque(saved.get("events", [])[-MAX_EVENTS:], maxlen=MAX_EVENTS)
+    events = deque(compact_observations(saved.get("events", []), limit=MAX_EVENTS),
+                   maxlen=MAX_EVENTS)
     state = {"events": events, "suggestions": [], "habits": {}, "last_save": None,
-             "last_event": None, "sensors": []}
+             "last_event": events[-1]["at"] if events else None,
+             "mqtt_capture": "not_subscribed", "sensors": []}
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = state
 
     automation_contexts = {}
@@ -92,6 +96,9 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
             return
 
         kind = "light" if entity.startswith("light.") else "climate"
+        # Suppress colour/brightness-only telemetry that evicts true decisions.
+        if kind == "light" and old.state == new.state:
+            return
         context = {"id": new.context.id, "parent_id": new.context.parent_id,
                    "user_id": new.context.user_id}
         classification = classify(context, automation_contexts, service_contexts)
@@ -125,6 +132,33 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
         state["last_event"] = now.isoformat()
         update_sensors()
 
+    @callback
+    def handle_mqtt_action(message):
+        candidate = parse_zigbee_action(
+            message.topic, message.payload, dt_util.utcnow()
+        )
+        if candidate is None:
+            return
+        events.append(candidate)
+        state["last_event"] = candidate["at"]
+        update_sensors()
+
+    async def subscribe_to_zigbee_actions():
+        # Reuse Home Assistant's existing TLS MQTT integration; no new broker.
+        try:
+            from homeassistant.components import mqtt
+            unsubscribe = await mqtt.async_subscribe(
+                hass, "zigbee2mqtt/+/action", handle_mqtt_action, 0
+            )
+        except Exception as exc:
+            state["mqtt_capture"] = "unavailable"
+            _LOGGER.warning("Read-only Zigbee action subscription unavailable: %s",
+                            type(exc).__name__)
+        else:
+            entry.async_on_unload(unsubscribe)
+            state["mqtt_capture"] = "subscribed"
+        update_sensors()
+
     async def persist(_=None):
         forget_stale(dt_util.utcnow())
         try:
@@ -152,6 +186,7 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
     state["suggestions"] = make_suggestions(list(events), hass.config.time_zone)
     state["habits"] = summarise_lighting_habits(list(events), hass.config.time_zone)
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+    await subscribe_to_zigbee_actions()
 
     @callback
     def explain_light_query(call):
