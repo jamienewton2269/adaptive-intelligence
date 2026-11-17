@@ -51,3 +51,28 @@ This module adds no command path for lights, switches, heaters or appliances.
 No cloud service, statistics broker or new persistent database.
 No rules are changed. Any future adaptation requires evidence review,
 presence/lux checks, expected energy impact and the user's approval.
+
+
+## v0.3.5 observation quality
+
+- Legacy brightness/colour-only light updates are removed from the *active*
+  5,000-event learning window when the integration loads; the original Store
+  file is backed up independently before deployment. Genuine on/off changes
+  remain, including their classifications and recorded lux.
+- New records only include actual on/off changes, meaningful climate target
+  updates and candidate physical actions. Colour-only updates never count.
+- An optional **read-only subscription** uses Home Assistant's existing MQTT
+  integration to observe `zigbee2mqtt/+/action` topics; it does not connect
+  to another broker or publish commands.
+- MQTT action topics are saved as **unverified physical-input candidates**;
+  they do not automatically become manual user actions or influence a
+  suggestion until a specific device-to-light mapping is confirmed.
+- If that topic is unavailable for a device, no candidate is created; not all
+  Zigbee buttons publish action topics in this format.
+- The capture health and the number of retained on/off changes appear in AI
+  Diagnostics → Lighting Habits.
+- If no lux source is selected in integration options, the live external west
+  eaves sensor `sensor.0xa4c1383917c90309_outdoor_lux_10_minute_average`
+  is used as read-only evidence. Its value is rejected when invalid or stale.
+  No internal feedback lux source is used.
+- No automation or light entity is modified by this release.
