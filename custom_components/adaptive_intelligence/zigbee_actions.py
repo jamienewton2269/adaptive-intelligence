@@ -24,7 +24,7 @@ def parse_zigbee_action(topic, payload, at):
     if not isinstance(payload,str):
         return None
     action=payload.strip()
-    if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_\-]{0,79}",action):
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_\\-]{0,79}",action):
         return None
     return {
         "at":at.isoformat(),
