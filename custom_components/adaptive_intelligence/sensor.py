@@ -9,6 +9,7 @@ _METRICS = (
     "unclassified_actions", "heating_changes",
     "physical_input_candidates", "unreliable_lux_events",
     "lighting_habit_candidates", "lighting_habit_early_patterns",
+    "lighting_state_transitions", "mqtt_action_capture",
 )
 
 
@@ -36,6 +37,10 @@ class AdaptiveSensor(SensorEntity):
         events = data["events"]
         if self.metric == "observations":
             return len(events)
+        if self.metric == "lighting_state_transitions":
+            return sum(e.get("kind") == "light" and e.get("old") != e.get("new") for e in events)
+        if self.metric == "mqtt_action_capture":
+            return data.get("mqtt_capture", "not_subscribed")
         if self.metric == "lighting_habit_candidates":
             return len(data.get("habits", {}).get("candidates", []))
         if self.metric == "lighting_habit_early_patterns":
@@ -70,6 +75,9 @@ class AdaptiveSensor(SensorEntity):
             return {"patterns": h.get("early_patterns", [])[:12],
                     "quality": h.get("counts", {}),
                     "mode": "observe_only"}
+        if self.metric == "mqtt_action_capture":
+            return {"mode": "observe_only",
+                    "note": "MQTT actions are input candidates, not confirmed lamp controls"}
         if self.metric == "observations":
             return {
                 "last_save": data["last_save"], "last_event": data["last_event"],
