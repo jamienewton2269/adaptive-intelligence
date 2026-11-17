@@ -65,12 +65,32 @@ views:
           weekdays/weekends. This establishes repetition, **not permission
           to change an automation**.
       - type: entities
-        title: Learning progress
+        title: Learning progress and input health
         entities:
-          - sensor.adaptive_intelligence_lighting_habit_candidates
-          - sensor.adaptive_intelligence_lighting_habit_early_patterns
+          - entity: sensor.adaptive_intelligence_lighting_habit_candidates
+            name: Repeatable manual habits
+          - entity: sensor.adaptive_intelligence_lighting_habit_early_patterns
+            name: Early manual signals
+          - entity: sensor.adaptive_intelligence_lighting_state_transitions
+            name: Actual on/off transitions retained
+          - entity: sensor.adaptive_intelligence_mqtt_action_capture
+            name: Zigbee2MQTT action listener
+          - entity: sensor.adaptive_intelligence_physical_input_candidates
+            name: Physical action candidates (unmapped)
           - sensor.adaptive_intelligence_verified_user_actions
           - sensor.adaptive_intelligence_unclassified_actions
+      - type: markdown
+        title: Zigbee button evidence
+        content: |
+          The listener uses Home Assistant's existing MQTT integration.
+          Pressing a Zigbee button should increase **Physical action candidates**
+          when that button publishes a `zigbee2mqtt/<device>/action` topic.
+          This proves a button action was observed, **not** which light it
+          controlled. If the listener is unavailable or the count remains
+          unchanged, action-topic availability needs investigating.
+
+          High-frequency brightness/colour updates are deliberately
+          excluded so genuine switching events remain in the learning history.
       - type: markdown
         title: Repeated manual patterns for review
         content: |
